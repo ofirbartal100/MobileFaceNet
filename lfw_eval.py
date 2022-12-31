@@ -11,14 +11,18 @@ import torch
 from PIL import Image
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+from MobileFaceNet.mobilefacenet import MobileFaceNet
 
-from config import device
+# from config import device
+device = 'cpu'
 from data_gen import data_transforms
 from utils import align_face, get_central_face_attributes, get_all_face_attributes, draw_bboxes, ensure_folder
+from torchscope import scope
 
-angles_file = 'data/angles.txt'
-lfw_pickle = 'data/lfw_funneled.pkl'
+angles_file = '/workspace/MobileFaceNet/angles.txt'
+lfw_pickle = '/workspace/MobileFaceNet/lfw_funneled.pkl'
 transformer = data_transforms['val']
+dataset_path = '/workspace/dabs/data/natural_images/lfw'
 
 
 def extract(filename):
@@ -27,14 +31,14 @@ def extract(filename):
 
 
 def process():
-    subjects = [d for d in os.listdir('data/lfw_funneled') if os.path.isdir(os.path.join('data/lfw_funneled', d))]
+    subjects = [d for d in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, d))]
     assert (len(subjects) == 5749), "Number of subjects is: {}!".format(len(subjects))
 
     print('Collecting file names...')
     file_names = []
     for i in tqdm(range(len(subjects))):
         sub = subjects[i]
-        folder = os.path.join('data/lfw_funneled', sub)
+        folder = os.path.join(dataset_path, sub)
         files = [f for f in os.listdir(folder) if
                  os.path.isfile(os.path.join(folder, f)) and f.lower().endswith('.jpg')]
         for file in files:
@@ -49,6 +53,7 @@ def process():
         filename = item['filename']
         class_id = item['class_id']
         sub = item['subject']
+        # samples.append({'class_id': class_id, 'subject': sub, 'full_path': filename})
         is_valid, bounding_boxes, landmarks = get_central_face_attributes(filename)
 
         if is_valid:
@@ -64,9 +69,13 @@ def process():
 
 
 def get_image(samples, file):
-    filtered = [sample for sample in samples if file in sample['full_path'].replace('\\', '/')]
-    assert (len(filtered) == 1), 'len(filtered): {} file:{}'.format(len(filtered), file)
-    sample = filtered[0]
+    # filtered = [sample for sample in samples if file in sample['full_path'].replace('\\', '/')]
+    # assert (len(filtered) == 1), 'len(filtered): {} file:{}'.format(len(filtered), file)
+    # sample = filtered[0]
+    for s in samples:
+        if s['subject'] == file[0] and int(s['full_path'][-8:-4]) == int(file[1]):
+            sample = s
+            break
     full_path = sample['full_path']
     landmarks = sample['landmarks']
     img = align_face(full_path, landmarks)  # BGR
@@ -86,6 +95,11 @@ def transform(img, flip=False):
 def get_feature(model, samples, file):
     imgs = torch.zeros([2, 3, 112, 112], dtype=torch.float, device=device)
     img = get_image(samples, file)
+    # for s in samples:
+    #     if s['subject'] == file[0] and int(s['full_path'][-8:-4]) == int(file[1]):
+    #         img_fn = s['full_path']
+    #         break
+    # img = cv.imread(img_fn)  # BGR
     imgs[0] = transform(img.copy(), False)
     imgs[1] = transform(img.copy(), True)
     with torch.no_grad():
@@ -104,7 +118,8 @@ def evaluate(model):
 
     samples = data['samples']
 
-    filename = 'data/lfw_test_pair.txt'
+    # filename = 'data/lfw_test_pair.txt'
+    filename = '/workspace/dabs/data/natural_images/lfw/pairs.txt'
     with open(filename, 'r') as file:
         lines = file.readlines()
 
@@ -112,12 +127,19 @@ def evaluate(model):
 
     elapsed = 0
 
-    for line in tqdm(lines):
+    for line in tqdm(lines[1:]):
         tokens = line.split()
-
+        if len(tokens) == 3:
+            im_a = [tokens[0],tokens[1]]
+            im_b = [tokens[0],tokens[2]]
+            is_same = True
+        elif len(tokens) == 4:
+            im_a = [tokens[0],tokens[1]]
+            im_b = [tokens[2],tokens[3]]
+            is_same = False
         start = time.time()
-        x0 = get_feature(model, samples, tokens[0])
-        x1 = get_feature(model, samples, tokens[1])
+        x0 = get_feature(model, samples, im_a)
+        x1 = get_feature(model, samples, im_b)
         end = time.time()
         elapsed += end - start
 
@@ -125,12 +147,12 @@ def evaluate(model):
         cosine = np.clip(cosine, -1.0, 1.0)
         theta = math.acos(cosine)
         theta = theta * 180 / math.pi
-        is_same = tokens[2]
-        angles.append('{} {}\n'.format(theta, is_same))
+        # is_same = tokens[2]
+        angles.append('{} {} {}\n'.format(theta, is_same,cosine))
 
     print('elapsed: {} ms'.format(elapsed / (6000 * 2) * 1000))
 
-    with open('data/angles.txt', 'w') as file:
+    with open('/workspace/MobileFaceNet/angles.txt', 'w') as file:
         file.writelines(angles)
 
 
@@ -144,7 +166,7 @@ def visualize(threshold):
     for line in lines:
         tokens = line.split()
         angle = float(tokens[0])
-        type = int(tokens[1])
+        type = int(eval(tokens[1]))
         if type == 1:
             ones.append(angle)
         else:
@@ -177,7 +199,7 @@ def visualize(threshold):
     plt.legend(loc='upper right')
     plt.plot([threshold, threshold], [0, 0.05], 'k-', lw=2)
     ensure_folder('images')
-    plt.savefig('images/theta_dist.png')
+    plt.savefig('/workspace/MobileFaceNet/images/theta_dist_retry.png')
     # plt.show()
 
 
@@ -189,7 +211,7 @@ def accuracy(threshold):
     for line in lines:
         tokens = line.split()
         angle = float(tokens[0])
-        type = int(tokens[1])
+        type = int(eval(tokens[1]))
         if type == 1:
             if angle > threshold:
                 wrong += 1
@@ -226,7 +248,7 @@ def error_analysis(threshold):
     for i, line in enumerate(angle_lines):
         tokens = line.split()
         angle = float(tokens[0])
-        type = int(tokens[1])
+        type = int(eval(tokens[1]))
         if angle <= threshold and type == 0:
             fp.append(i)
         if angle > threshold and type == 1:
@@ -266,7 +288,7 @@ def error_analysis(threshold):
 
 
 def save_aligned(old_fn, new_fn):
-    old_fn = os.path.join('data/lfw_funneled', old_fn)
+    old_fn = os.path.join(dataset_path, old_fn)
     is_valid, bounding_boxes, landmarks = get_central_face_attributes(old_fn)
     img = align_face(old_fn, landmarks)
     new_fn = os.path.join('images', new_fn)
@@ -274,7 +296,7 @@ def save_aligned(old_fn, new_fn):
 
 
 def copy_file(old, new):
-    old_fn = os.path.join('data/lfw_funneled', old)
+    old_fn = os.path.join(dataset_path, old)
     img = cv.imread(old_fn)
     bounding_boxes, landmarks = get_all_face_attributes(old_fn)
     draw_bboxes(img, bounding_boxes, landmarks)
@@ -292,7 +314,7 @@ def get_threshold():
     for line in lines:
         tokens = line.split()
         angle = float(tokens[0])
-        type = int(tokens[1])
+        type = int(eval(tokens[1]))
         data.append({'angle': angle, 'type': type})
 
     min_error = 6000
@@ -312,14 +334,14 @@ def get_threshold():
 
 
 def lfw_test(model):
-    filename = 'data/lfw-funneled.tgz'
-    if not os.path.isdir('data/lfw_funneled'):
-        print('Extracting {}...'.format(filename))
-        extract(filename)
+    # filename = 'data/lfw-funneled.tgz'
+    # if not os.path.isdir(dataset_path):
+    #     print('Extracting {}...'.format(filename))
+    #     extract(filename)
 
     # if not os.path.isfile(lfw_pickle):
-    print('Processing {}...'.format(lfw_pickle))
-    process()
+    #     print('Processing {}...'.format(lfw_pickle))
+    #     process()
 
     # if not os.path.isfile(angles_file):
     print('Evaluating {}...'.format(angles_file))
@@ -341,8 +363,17 @@ if __name__ == "__main__":
     # model = model.to(device)
     # model.eval()
 
-    scripted_model_file = 'mobilefacenet_scripted.pt'
-    model = torch.jit.load(scripted_model_file)
+    
+    
+    model = MobileFaceNet()
+    model.load_state_dict(torch.load('/workspace/MobileFaceNet/checkpoints/mobilefacenet_complete.pt'))
+    scope(model,input_size=(3,112,112))
+
+
+    # scripted_model_file = '/workspace/MobileFaceNet/checkpoints/mobilefacenet_scripted.pt'
+    # scripted_model = torch.jit.load(scripted_model_file)
+    # scope(scripted_model,input_size=(3,112,112))
+
     model = model.to(device)
     model.eval()
 
@@ -351,5 +382,23 @@ if __name__ == "__main__":
     print('Visualizing {}...'.format(angles_file))
     visualize(threshold)
 
-    print('error analysis...')
-    error_analysis(threshold)
+    # print('error analysis...')
+    # error_analysis(threshold)
+
+# for converting jit to pytorch, need to update the running stats in the batch norm layers.
+# def isnumber(s):
+#     for c in s:
+#         if not (c <= '9' and c>='0'):
+#             return False
+#     return True
+
+
+# def get_running(s_model, key):
+#     sub = key.split('.')
+#     item = s_model
+#     for s in sub:
+#         if isnumber(s):
+#             item = item._modules[s]
+#         else:
+#             item = getattr(item,s)
+#     return item

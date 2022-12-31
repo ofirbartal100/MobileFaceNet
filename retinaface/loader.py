@@ -28,11 +28,11 @@ def remove_prefix(state_dict, prefix):
 
 def load_model(net='mnet'):
     if net == 'mnet':
-        pretrained_path = 'retinaface/weights/mobilenet0.25_Final.pth'
+        pretrained_path = '/workspace/MobileFaceNet/retinaface/weights/mobilenet0.25_Final.pth'
         # print('Loading pretrained model from {}'.format(pretrained_path))
         model = RetinaFace(cfg=cfg_mnet, phase='test')
     else:
-        pretrained_path = 'retinaface/weights/Resnet50_Final.pth'
+        pretrained_path = '/workspace/MobileFaceNet/retinaface/weights/Resnet50_Final.pth'
         # print('Loading pretrained model from {}'.format(pretrained_path))
         model = RetinaFace(cfg=cfg_re50, phase='test')
 
