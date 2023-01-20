@@ -34,7 +34,8 @@ transformer = transforms.Compose([transforms.Resize(112),
                             transforms.Normalize(MEAN,STD)])
 
 
-data_dir = "/workspace/dabs/data/adv_data/lfw/13_01_2023/lfw_budget_budget=0.025/train/"
+# data_dir = "/workspace/dabs/data/adv_data/lfw/13_01_2023/lfw_budget_budget=0.025/train/"
+data_dir = "/workspace/dabs/data/adv_data/lfw/14_01_2023/lfw_budget_budget=0.035/val/"
 
 
 def transform(img, flip=False):
@@ -97,10 +98,12 @@ for class_folder in tqdm(os.listdir(data_dir),position=0):
 r = np.array(results)
 print(f'ASR = {1-r.mean()} ;  success/total = {r.sum()}/{len(r)}')
 
+# 0.025
 # ASR = 0.2526515151515152 ;  success/total = 1973/2640 - val
 # ASR = 0.2593455981182796 ;  success/total = 35267/47616 - train
 
-
+# 0.035
+# ASR = 0.9159090909090909 ;  success/total = 222/2640 - val
 
 
 

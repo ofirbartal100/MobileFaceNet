@@ -19,10 +19,13 @@ from data_gen import data_transforms
 from utils import align_face, get_central_face_attributes, get_all_face_attributes, draw_bboxes, ensure_folder
 from torchscope import scope
 
-angles_file = '/workspace/MobileFaceNet/angles.txt'
-lfw_pickle = '/workspace/MobileFaceNet/lfw_funneled.pkl'
+# angles_file = '/workspace/MobileFaceNet/angles.txt'
+angles_file = '/workspace/MobileFaceNet/angles_adv.txt'
+# lfw_pickle = '/workspace/MobileFaceNet/lfw_funneled.pkl'
+lfw_pickle = '/workspace/MobileFaceNet/lfw_adv.pkl'
 transformer = data_transforms['val']
-dataset_path = '/workspace/dabs/data/natural_images/lfw'
+# dataset_path = '/workspace/dabs/data/natural_images/lfw'
+dataset_path = '/workspace/dabs/data/adv_data/lfw/13_01_2023/lfw_budget_budget=0.025/val'
 
 
 def extract(filename):
@@ -339,9 +342,9 @@ def lfw_test(model):
     #     print('Extracting {}...'.format(filename))
     #     extract(filename)
 
-    # if not os.path.isfile(lfw_pickle):
-    #     print('Processing {}...'.format(lfw_pickle))
-    #     process()
+    if not os.path.isfile(lfw_pickle):
+        print('Processing {}...'.format(lfw_pickle))
+        process()
 
     # if not os.path.isfile(angles_file):
     print('Evaluating {}...'.format(angles_file))
